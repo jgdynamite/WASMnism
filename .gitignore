@@ -48,6 +48,12 @@ crash.*.log
 /docs/ENDPOINTS.local.md
 /docs/*.local.md
 
+# --- Internal planning docs (local only) ---
+/docs/CLIPCLAP_INSPECTION.md
+/docs/EXECUTION_PLAN.md
+/docs/INTERNAL_MEMO.md
+/docs/OPUS_WORK_SUMMARY.md
+
 # --- Blog export (local only) ---
 /wasmnisum-blog.*
 /*-blog.*
