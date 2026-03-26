@@ -23,6 +23,7 @@ User prompt → [WASM Prompt Firewall at Edge] → Any AI Service
                           ├─ PII detection (regex: email, phone, SSN)
                           ├─ Injection detection (XSS, SQL, prompt injection)
                           ├─ Leetspeak expansion + re-scan
+                          ├─ ML toxicity classifier (MiniLMv2, 22.7M params)
                           └─ Policy verdict (allow / review / block)
 ```
 
@@ -90,12 +91,48 @@ exists in KV, it's returned immediately.
 
 **Core function:** `clipclap_gateway_core::pipeline::moderate_cached()`
 
+### Layer 3: ML Toxicity Classifier
+
+**What:** A MiniLMv2 neural network (22.7M parameters) fine-tuned on the
+Jigsaw toxic-comment dataset. Runs entirely inside the WASM sandbox via
+Tract NNEF — no external service calls.
+
+**When:** Only invoked when the `text` field is present and non-empty.
+Skipped for policy-only requests (no text) and cached hits.
+
+**Pipeline:**
+1. WordPiece tokenization (custom Rust tokenizer, 8k vocabulary)
+2. Tensor construction (input_ids, attention_mask, token_type_ids)
+3. Forward pass through the distilled transformer
+4. Sigmoid over the output logits → per-category probabilities
+
+**Categories:**
+
+| Output | Threshold | Verdict |
+|--------|-----------|---------|
+| `toxic` ≥ 0.80 | Hard block | `block` |
+| `severe_toxic` ≥ 0.80 | Hard block | `block` |
+| `toxic` ≥ 0.50 | Soft flag | `review` |
+| Below thresholds | — | no ML flag |
+
+**Why it matters:** The ML layer catches semantically toxic content that
+keyword rules miss. "You are pathetic and disgusting" contains no
+prohibited terms, but the model scores it at ~0.86 toxicity and blocks it.
+
+**Performance:** ~850ms cold start on Fermyon Cloud (includes model
+deserialization). Warm inference is dominated by the forward pass since
+the model is already loaded.
+
+**Core function:** `clipclap_gateway_core::toxicity::ToxicityClassifier`
+
 ### Verdict Rules
 
 | Condition | Verdict |
 |-----------|---------|
 | Injection detected (code or prompt) | `block` |
 | Prohibited term detected | `block` |
+| ML toxicity ≥ 0.80 | `block` |
+| ML toxicity ≥ 0.50 | `review` |
 | PII detected | `review` |
 | No flags | `allow` |
 
@@ -110,7 +147,13 @@ Strictest verdict wins when multiple flags are present: `block > review > allow`
     "policy_flags": ["prohibited_term", "pii_detected", "injection_attempt"],
     "confidence": 0.0,
     "blocked_terms": ["murder", "bloody"],
-    "processing_ms": 2.56
+    "processing_ms": 862.1,
+    "ml_toxicity": {
+      "toxic": 0.001,
+      "severe_toxic": 0.0001,
+      "inference_ms": 858.9,
+      "model": "MiniLMv2-toxic-jigsaw"
+    }
   },
   "classification": { ... },
   "cache": {
@@ -134,7 +177,7 @@ When implementing a new adapter (Fastly, Workers, Lambda), each must provide:
 | Component | Description | Reference |
 |-----------|-------------|-----------|
 | **KV Store** | Read/write cached verdicts | `kv_get()`, `kv_put()` |
-| **Config/Secrets** | `inference_url`, `gateway_region` from env/secrets | Platform-specific |
+| **Config/Secrets** | `gateway_region` from env/secrets | Platform-specific |
 | **Request ID** | UUID v4 per request | `uuid::Uuid::new_v4()` |
 
 ### Shared (from core crate)
@@ -160,13 +203,15 @@ When implementing a new adapter (Fastly, Workers, Lambda), each must provide:
 ```
 1. Parse JSON → extract labels[] + text
 2. pre_check(labels, text) → policy pre-check
-   └─ BLOCKS → return Block immediately (no cache, no inference)
+   └─ BLOCKS → return Block immediately (no cache, no ML)
 3. kv_get(label_hash) → check verdict cache
    └─ HIT → return cached verdict
-4. Build mock classification (policy-only mode)
-5. post_check → evaluate classification scores
-6. merge_results(pre + post) → final verdict
-7. Return response with verdict + timing
+4. If text is present and non-empty:
+   └─ ML toxicity inference (WordPiece tokenize → Tract forward pass)
+5. Build classification (policy scores + ML scores)
+6. post_check → evaluate classification scores
+7. merge_results(pre + post + ML) → final verdict
+8. Return response with verdict + timing
 ```
 
 ## Testing
@@ -222,7 +267,7 @@ against any deployed gateway to prove moderation correctness.
 | S8 | Repeat of S1 | `allow`, `cache.hit: true` |
 | S9 | Clean after block | `allow` |
 
-### Running
+### Running Validation
 
 ```bash
 ./bench/run-validation.sh <platform> <gateway_url>
@@ -236,3 +281,38 @@ against any deployed gateway to prove moderation correctness.
 
 All four must produce `9/9 PASS` before performance benchmarks are valid.
 See `docs/benchmark_contract.md` section 9 for full validation contract.
+
+## Performance Benchmark Suite
+
+Five k6 scripts measure different performance characteristics. Run them
+via the suite runner or individually.
+
+### Tests
+
+| Script | What It Measures | Duration |
+|--------|-----------------|----------|
+| `cold-start.js` | WASM module instantiation + ML model load | ~20 min (10 iterations, 2-min gaps) |
+| `warm-light.js` | Minimal-work latency (`GET /gateway/health`, 10 VUs) | 60s |
+| `warm-heavy.js` | ML inference latency (`POST /gateway/moderate` with text, 5 VUs) | 60s |
+| `concurrency-ladder.js` | Scaling behavior under increasing load (1→50 VUs) | 150s |
+| `consistency.js` | Latency jitter over a sustained run (5 VUs) | 120s |
+
+### Running the Suite
+
+```bash
+./bench/run-suite.sh <platform> <gateway_url> [--cold]
+
+# Fermyon:
+./bench/run-suite.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app
+
+# With cold start test:
+./bench/run-suite.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app --cold
+```
+
+Results are saved to `results/<platform>/<timestamp>/`.
+
+### Building Scorecards
+
+```bash
+python3 bench/build-scorecard.py results/<platform_a>/<ts> results/<platform_b>/<ts> [output.md]
+```

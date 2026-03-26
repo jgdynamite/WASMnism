@@ -44,6 +44,5 @@ echo "  echo 'deb [signed-by=/usr/share/keyrings/k6.gpg] https://dl.k6.io/deb st
 echo "  apt-get update && apt-get install -y k6"
 echo "  mkdir -p /opt/bench/fixtures"
 echo ""
-echo "Then copy the benchmark files:"
-echo "  scp bench/policy-only.js bench/cached-hit.js bench/full-pipeline.js root@<IP>:/opt/bench/"
-echo "  scp bench/fixtures/benchmark.jpg root@<IP>:/opt/bench/fixtures/"
+echo "Then copy the benchmark suite:"
+echo "  scp bench/cold-start.js bench/warm-light.js bench/warm-heavy.js bench/concurrency-ladder.js bench/consistency.js bench/run-suite.sh root@<IP>:/opt/bench/"

@@ -55,32 +55,27 @@ All costs are in USD.
 
 ## Cost Calculation Template
 
-### Per-Mode Assumptions
+### Per-Test Assumptions
 
-| Mode | Avg Response Size | KV Reads | KV Writes | Inference Calls |
-|------|------------------|----------|-----------|----------------|
-| Policy-Only | ~1 KB | 0 | 0 | 0 |
-| Cached Hit | ~1 KB | 1M | 0 | 0 |
-| Full Pipeline (80% cache hit) | ~2 KB | 1M | 200K | 200K |
+| Test | Avg Response Size | KV Reads | Compute Weight | Notes |
+|------|------------------|----------|----------------|-------|
+| Warm Light (health) | ~0.2 KB | 0 | Minimal | No ML, no policy |
+| Warm Heavy (ML) | ~1 KB | 0 | ~850ms CPU | ML toxicity inference |
 
 ### Cost per 1M Requests
 
 *To be filled after benchmark runs with actual response sizes and timing data.*
 
-| Platform | Mode | Requests | Compute | KV | Bandwidth | Total |
+| Platform | Test | Requests | Compute | KV | Bandwidth | Total |
 |----------|------|----------|---------|----|-----------| ------|
-| Spin | policy-only | | | N/A | | |
-| Spin | cached-hit | | | | | |
-| Spin | full-pipeline | | | | | |
-| Fastly | policy-only | | | N/A | | |
-| Fastly | cached-hit | | | | | |
-| Fastly | full-pipeline | | | | | |
-| Workers | policy-only | | | N/A | | |
-| Workers | cached-hit | | | | | |
-| Workers | full-pipeline | | | | | |
-| Lambda | policy-only | | | N/A | | |
-| Lambda | cached-hit | | | | | |
-| Lambda | full-pipeline | | | | | |
+| Spin | warm-light | | | N/A | | |
+| Spin | warm-heavy | | | N/A | | |
+| Fastly | warm-light | | | N/A | | |
+| Fastly | warm-heavy | | | N/A | | |
+| Workers | warm-light | | | N/A | | |
+| Workers | warm-heavy | | | N/A | | |
+| Lambda | warm-light | | | N/A | | |
+| Lambda | warm-heavy | | | N/A | | |
 
 ---
 
@@ -88,6 +83,7 @@ All costs are in USD.
 
 - Pricing is based on public rate cards and may differ from negotiated enterprise contracts.
 - Free tier allocations are NOT included in calculations (we assume production-scale volume).
-- Lambda cost includes NAT Gateway for outbound inference calls (Full Pipeline mode only).
+- The gateway is self-contained — no external inference calls, so no NAT Gateway costs.
+- Warm-heavy cost is dominated by CPU time (ML inference ~850ms per request).
 - Bandwidth costs use average response size from benchmark measurements.
 - All prices are pay-as-you-go; reserved capacity or committed use discounts are excluded.

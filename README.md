@@ -55,9 +55,10 @@ A Svelte SaaS-style dashboard with:
 
 ### Benchmark Infrastructure
 
-- k6 scripts for three benchmark modes (policy-only, cached-hit, full-pipeline)
-- Measurement contract defining schemas, SLOs, and fairness rules
-- Multi-region testing from 3 geographic locations
+- 5-test k6 suite: cold start, warm light, warm heavy (ML), concurrency ladder, consistency
+- Suite runner (`bench/run-suite.sh`) and scorecard generator (`bench/build-scorecard.py`)
+- Measurement contract v3.0 defining schemas, SLOs, and fairness rules
+- Moderation validation suite (9 scenarios) for correctness before performance testing
 
 ---
 
@@ -72,9 +73,10 @@ A Svelte SaaS-style dashboard with:
 
 ### Benchmarking
 
-- [ ] Multi-region k6 runs (median of 7, client-side timing as source of truth)
-- [ ] Cross-platform scorecard: latency percentiles (p50, p95, p99) per mode
-- [ ] Cold start vs warm request analysis
+- [x] 5-test k6 benchmark suite (cold start, warm light, warm heavy, concurrency ladder, consistency)
+- [x] Suite runner and scorecard generator
+- [ ] Multi-region k6 runs (3 geographic locations, client-side timing)
+- [ ] Cross-platform scorecard: latency percentiles (p50, p90, p95) per test
 - [ ] ML inference timing comparison across WASM platforms
 
 ### Cost Analysis
@@ -191,17 +193,22 @@ The model runs entirely inside the WASM sandbox — no external ML service calls
 
 ## Benchmark
 
-Three modes per the [measurement contract](docs/benchmark_contract.md):
+Five tests per the [measurement contract](docs/benchmark_contract.md) v3.0:
 
-| Mode | Endpoint | What It Measures |
-|------|----------|-----------------|
-| Policy-Only | `POST /gateway/moderate` | Edge compute + ML inference |
-| Cached Hit | `POST /gateway/moderate-cached` | Edge compute + KV read |
-| Full Pipeline | `POST /api/clip/moderate` | End-to-end with inference proxy |
+| Test | Script | What It Measures |
+|------|--------|-----------------|
+| Cold Start | `cold-start.js` | WASM instantiation + ML model load |
+| Warm Light | `warm-light.js` | Minimal-work latency (health check) |
+| Warm Heavy | `warm-heavy.js` | Full moderation + ML inference |
+| Concurrency Ladder | `concurrency-ladder.js` | Scaling under 1→50 VUs |
+| Consistency | `consistency.js` | Latency jitter over 120s |
 
 ```bash
-cd bench
-k6 run gateway-only.js
+# Run full suite against a platform
+./bench/run-suite.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app
+
+# Compare two platforms
+python3 bench/build-scorecard.py results/fermyon/<ts> results/<other>/<ts>
 ```
 
 ## API
