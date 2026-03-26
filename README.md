@@ -4,13 +4,17 @@
 
 A portable AI Prompt Firewall deployed as WebAssembly across multiple edge platforms, with an embedded ML toxicity classifier running entirely inside the WASM runtime. Built to produce a decision-grade price-per-performance scorecard comparing edge compute providers.
 
+> **Status**: Work in progress. Fermyon Cloud is live. Fastly, Cloudflare, and Lambda deployments are next.
+
 **Live demo**: [wasm-prompt-firewall-imjy4pe0.fermyon.app](https://wasm-prompt-firewall-imjy4pe0.fermyon.app/)
 
 ---
 
-## What It Does
+## What's Been Built
 
-Every prompt passes through an 8-step moderation pipeline at the edge — before reaching any downstream AI model:
+### Edge Gateway (Rust → WASM)
+
+A single Rust codebase compiled to `wasm32-wasip1` that runs an 8-step moderation pipeline entirely at the edge:
 
 1. **Unicode NFC normalization** — canonical text form
 2. **SHA-256 content hashing** — cache key + deduplication
@@ -18,10 +22,78 @@ Every prompt passes through an 8-step moderation pipeline at the edge — before
 4. **Prohibited content scan** — multi-pattern matching on expanded text
 5. **PII detection** — email, phone, SSN regex
 6. **Injection detection** — XSS, SQL injection patterns
-7. **ML toxicity classifier** — MiniLMv2 neural network (22.7M params) via Tract NNEF, running inside WASM
+7. **ML toxicity classifier** — MiniLMv2 neural network (22.7M params), running inside the WASM sandbox via Tract NNEF
 8. **Policy verdict** — merge all signals into `allow`, `review`, or `block`
 
-The ML step catches semantically toxic content that keyword rules miss — "you are pathetic and disgusting" contains no prohibited terms, but the model scores it at 0.86 toxicity and blocks it.
+The ML model catches semantically toxic content that keyword rules miss. "You are pathetic and disgusting" contains no prohibited terms, but the model scores it at 0.86 toxicity and blocks it.
+
+### Frontend Dashboard
+
+A Svelte SaaS-style dashboard with:
+- Real-time prompt evaluation against the live edge gateway
+- 5-step pipeline visualization with color-coded status
+- ML toxicity gauges with threshold markers
+- Timing breakdown (client round-trip, gateway processing, ML inference)
+- Pre-built example prompts spanning safe text, semantic toxicity, injection attacks, PII, and leetspeak evasion
+
+### Deployments
+
+| Platform | Type | Status |
+|----------|------|--------|
+| **Fermyon Cloud** (Spin) | Edge / WASM | Live |
+| **Linode** (Native Axum) | Baseline | Live |
+
+### ML Model Pipeline
+
+- **Model**: MiniLMv2 fine-tuned on Jigsaw toxic-comment data (22.7M parameters)
+- **Export**: PyTorch → ONNX (opset 14, fixed shapes) → vocabulary-trimmed (30k → 8k tokens) → Tract NNEF
+- **Runtime**: Pure-Rust inference via Tract, with a custom WordPiece tokenizer — no Python, no external service calls
+- **Size**: ~53 MB model + 56 KB vocabulary, fitting within Fermyon's 100 MB limit
+
+### Benchmark Infrastructure
+
+- k6 scripts for three benchmark modes (policy-only, cached-hit, full-pipeline)
+- Measurement contract defining schemas, SLOs, and fairness rules
+- Native baseline on Linode for apples-to-apples comparison
+
+---
+
+## What's Planned
+
+### Platform Deployments
+
+- [ ] **Akamai Functions (Spin)** — access requested, same Spin adapter applies
+- [ ] **Fastly Compute** — adapter scaffolded, needs deployment and testing
+- [ ] **Cloudflare Workers** — adapter scaffolded, needs deployment and testing
+- [ ] **AWS Lambda** — adapter scaffolded, needs deployment and testing
+
+### Benchmarking
+
+- [ ] Multi-region k6 runs (median of 7, client-side timing as source of truth)
+- [ ] Cross-platform scorecard: latency percentiles (p50, p95, p99) per mode
+- [ ] Cold start vs warm request analysis
+- [ ] ML inference timing comparison across platforms
+
+### Cost Analysis
+
+- [ ] Cost per 1M requests at SLO for each platform
+- [ ] Price-per-performance scorecard
+
+### Blog Post
+
+- [ ] Executive summary and narrative hook
+- [ ] Architecture deep-dive with diagrams
+- [ ] Benchmark results with reproducible methodology
+- [ ] Reproduce instructions for all platforms
+
+### Potential Improvements
+
+- [ ] Warm-start ML inference optimization (currently ~850ms cold on Fermyon)
+- [ ] Additional toxicity categories beyond `toxic` and `severe_toxic`
+- [ ] Raw JSON response toggle in the dashboard
+- [ ] Persistent evaluation history (localStorage)
+
+---
 
 ## Architecture
 
@@ -36,11 +108,12 @@ The ML step catches semantically toxic content that keyword rules miss — "you 
                  └──────────────────────────────────┘
 ```
 
-The gateway is a single Rust codebase compiled to `wasm32-wasip1`, with thin platform adapters for each target:
+The gateway is a single Rust codebase compiled to `wasm32-wasip1`, with thin platform adapters:
 
 | Platform | Adapter | Status |
 |----------|---------|--------|
 | **Fermyon Cloud** (Spin) | `edge-gateway/adapters/spin/` | Deployed |
+| **Akamai Functions** (Spin) | `edge-gateway/adapters/spin/` | Access requested |
 | **Fastly Compute** | `edge-gateway/adapters/fastly/` | Scaffolded |
 | **Cloudflare Workers** | `edge-gateway/adapters/workers/` | Scaffolded |
 | **AWS Lambda** | `edge-gateway/adapters/lambda/` | Scaffolded |
@@ -105,8 +178,6 @@ spin cloud deploy \
 
 ## ML Model
 
-The toxicity classifier uses **MiniLMv2** (fine-tuned on Jigsaw toxic-comment data), exported to ONNX, vocabulary-trimmed to 8000 tokens, then converted to Tract's NNEF format for efficient WASM loading.
-
 | Property | Value |
 |----------|-------|
 | Model | MiniLMv2-toxic-jigsaw |
@@ -117,19 +188,17 @@ The toxicity classifier uses **MiniLMv2** (fine-tuned on Jigsaw toxic-comment da
 | Inference | ~850ms (Fermyon Cloud, cold) |
 | Categories | `toxic`, `severe_toxic` |
 
-The model runs entirely inside the WASM sandbox — no external ML service calls.
+The model runs entirely inside the WASM sandbox — no external ML service calls. It was exported from PyTorch to ONNX, vocabulary-trimmed from 30k to 8k tokens to fit deployment size limits, then converted to Tract's NNEF format to avoid expensive protobuf parsing in the WASM runtime.
 
 ## Benchmark
 
-Three modes are benchmarked per the [measurement contract](docs/benchmark_contract.md):
+Three modes per the [measurement contract](docs/benchmark_contract.md):
 
 | Mode | Endpoint | What It Measures |
 |------|----------|-----------------|
 | Policy-Only | `POST /gateway/moderate` | Edge compute + ML inference |
 | Cached Hit | `POST /gateway/moderate-cached` | Edge compute + KV read |
 | Full Pipeline | `POST /api/clip/moderate` | End-to-end with inference proxy |
-
-Run with k6:
 
 ```bash
 cd bench
