@@ -337,20 +337,17 @@ const ML_SEVERE_THRESHOLD: f64 = 0.45;
 fn run_ml_toxicity(
     classifier: Option<&ToxicityClassifier>,
     text: Option<&str>,
-    labels: &[String],
+    _labels: &[String],
 ) -> (Option<PolicyResult>, Option<ToxicityInfo>) {
     let classifier = match classifier {
         Some(c) => c,
         None => return (None, None),
     };
 
-    let input = text
-        .map(String::from)
-        .unwrap_or_else(|| labels.join(" "));
-
-    if input.trim().is_empty() {
-        return (None, None);
-    }
+    let input = match text {
+        Some(t) if !t.trim().is_empty() => t,
+        _ => return (None, None),
+    };
 
     match classifier.classify(&input) {
         Ok(scores) => {
