@@ -114,3 +114,6 @@ _archive/
 # --- Spin binary (install via curl, not committed) ---
 /spin
 /spin.sig
+
+# k6 runner IPs (sensitive)
+deploy/runners.env

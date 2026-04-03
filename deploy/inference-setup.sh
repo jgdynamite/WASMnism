@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
+# LEGACY — This script was for the external ClipClap inference service.
+# The gateway now embeds ML inference directly in the WASM sandbox.
+# Kept for reference only; not needed for current architecture.
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
-echo "=== Installing system dependencies ==="
+echo "=== [LEGACY] Installing system dependencies ==="
 apt-get update -qq
 apt-get install -y -qq python3 python3-pip python3-venv libsndfile1 ffmpeg git
 

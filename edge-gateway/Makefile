@@ -13,15 +13,9 @@ clean:
 
 # ── Frontend (build + copy to Spin static dir) ───────────────
 build-frontend:
-	cd ../clipclap/frontend && npm install && npm run build
+	cd ../frontend && npm install && npm run build
 	mkdir -p adapters/spin/static
-	cp -r ../clipclap/frontend/dist/* adapters/spin/static/
-	mkdir -p adapters/spin/static/samples/images
-	cd adapters/spin/static/samples/images && \
-	  curl -sL "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=640&q=80" -o cat.jpg && \
-	  curl -sL "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=640&q=80" -o street.jpg && \
-	  curl -sL "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=640&q=80" -o food.jpg && \
-	  curl -sL "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=640&q=80" -o mountain.jpg
+	cp -r ../frontend/dist/* adapters/spin/static/
 
 # ── Spin (Akamai Functions) ──────────────────────────────────
 build-spin: build-frontend
@@ -29,14 +23,12 @@ build-spin: build-frontend
 
 run-spin:
 	cd adapters/spin && \
-	SPIN_VARIABLE_INFERENCE_URL=$${INFERENCE_URL:?Set INFERENCE_URL} \
 	SPIN_VARIABLE_GATEWAY_REGION=$${GATEWAY_REGION:-us-east-1} \
 	spin up
 
 deploy-spin:
 	cd adapters/spin && \
 	spin cloud deploy \
-	  --variable inference_url=$${INFERENCE_URL:?Set INFERENCE_URL} \
 	  --variable gateway_region=$${GATEWAY_REGION:-us-ord}
 
 # ── Fastly Compute ───────────────────────────────────────────

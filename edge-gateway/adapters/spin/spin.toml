@@ -6,7 +6,7 @@ version = "1.0.0"
 description = "AI Prompt Firewall — WASM-Powered Content Moderation at the Edge"
 
 [variables]
-inference_url = { required = true }
+inference_url = { default = "" }
 gateway_region = { default = "us-east-1" }
 
 # --- API routes → gateway WASM ---

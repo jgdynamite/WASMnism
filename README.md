@@ -58,8 +58,10 @@ A Svelte SaaS-style dashboard with:
 - **Primary suite**: rule-based pipeline benchmarks (what customers deploy) — warm light, warm policy, concurrency ladder
 - **Stretch suite**: embedded ML inference benchmarks (demonstrates limits) — warm heavy, consistency
 - Cold start tests for both modes
-- Suite runner (`bench/run-suite.sh`), scorecard generator, and 7-run median calculator
-- Measurement contract v3.0 with 9-scenario validation suite for correctness
+- Suite runner, 7-run median calculator, scorecard generator, and multi-region runner
+- Automated reproduce pipeline: `make benchmark` (single region) or `make bench-multiregion` (3 regions)
+- Multi-region k6 infrastructure: automated provisioning of Linode VMs in us-ord, eu-west, ap-south
+- Measurement contract v3.1 with 9-scenario validation suite for correctness
 
 ---
 
@@ -79,7 +81,11 @@ A Svelte SaaS-style dashboard with:
 - [x] Cold start tests (rules-only and ML modes)
 - [x] Suite runner, scorecard generator, and 7-run median calculator
 - [x] Fermyon Cloud: validation 9/9, 7-run medians, cold start data
-- [ ] Multi-region k6 runs (3 geographic locations, client-side timing)
+- [x] End-to-end reproduce pipeline (`bench/reproduce.sh`)
+- [x] Multi-region k6 runner infrastructure (`deploy/k6-runner-setup.sh`)
+- [x] Multi-region orchestrator (`bench/run-multiregion.sh`)
+- [x] Root Makefile with all automation targets
+- [ ] Multi-region benchmark data (3 geographic locations)
 - [ ] Cross-platform scorecard: latency percentiles (p50, p90, p95) per test
 
 ### Cost Analysis
@@ -92,7 +98,7 @@ A Svelte SaaS-style dashboard with:
 - [ ] Executive summary and narrative hook
 - [ ] Architecture deep-dive with diagrams
 - [ ] Benchmark results with reproducible methodology
-- [ ] Reproduce instructions for all platforms
+- [x] Reproduce instructions ([docs/REPRODUCE.md](docs/REPRODUCE.md))
 
 ### Potential Improvements
 
@@ -131,6 +137,7 @@ The gateway is a single Rust codebase compiled to `wasm32-wasip1`, with thin pla
 
 ```
 WASMnism/
+├── Makefile                # Root automation: make build, make benchmark, make runners-up, etc.
 ├── edge-gateway/           # Rust workspace
 │   ├── core/               #   Shared logic: pipeline, policy, toxicity, tokenizer
 │   ├── adapters/           #   Platform-specific HTTP adapters
@@ -138,35 +145,48 @@ WASMnism/
 │   │   ├── fastly/         #     Fastly Compute
 │   │   ├── workers/        #     Cloudflare Workers
 │   │   └── lambda/         #     AWS Lambda
-│   ├── models/toxicity/    #   ML model files (gitignored, built locally)
+│   ├── models/toxicity/    #   ML model + vocab (see models/README.md for provenance)
 │   └── tools/              #   ONNX → NNEF conversion tool
 ├── frontend/               # Svelte dashboard (built → Spin static files)
-├── bench/                  # k6 benchmark scripts
-├── deploy/                 # Deployment scaffolding
+├── bench/                  # k6 benchmark scripts + automation
+│   ├── reproduce.sh        #   End-to-end pipeline: validate → 7-run → medians
+│   ├── run-multiregion.sh  #   Distribute to 3 k6 runners in parallel
+│   ├── run-suite.sh        #   Single benchmark suite run
+│   └── run-7x.sh           #   7-run median calculator
+├── deploy/                 # Deployment + infrastructure
+│   ├── k6-runner-setup.sh  #   Provision/teardown 3 Linode k6 runners
+│   └── runners.env         #   Runner IPs (gitignored)
 ├── cost/                   # Cost model per 1M requests
-└── docs/                   # Benchmark contract, moderation guide
+├── docs/                   # Benchmark contract, moderation guide, reproduce guide
+│   └── REPRODUCE.md        #   Step-by-step stranger reproduction guide
+└── results/                # Benchmark data (gitignored)
 ```
 
 ## Quick Start
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) with `wasm32-wasip1` target: `rustup target add wasm32-wasip1`
-- [Spin CLI](https://developer.fermyon.com/spin/v3/install): `curl -fsSL https://developer.fermyon.com/downloads/install.sh | bash`
-- [Node.js](https://nodejs.org/) 18+ (for frontend build)
+| Tool | Needed for | Install |
+|------|-----------|---------|
+| [Rust](https://rustup.rs/) + `wasm32-wasip1` | Build gateway | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh && rustup target add wasm32-wasip1` |
+| [Spin CLI](https://developer.fermyon.com/spin/install) | Build + deploy | `curl -fsSL https://developer.fermyon.com/downloads/install.sh \| bash` |
+| [Node.js](https://nodejs.org/) 18+ | Frontend build | `brew install node` or [nodejs.org](https://nodejs.org) |
+| [k6](https://k6.io) | Benchmarks | `brew install k6` |
+| Python 3 | Medians + scorecard | Pre-installed on macOS/Ubuntu |
+| [linode-cli](https://www.linode.com/docs/products/tools/cli/) | Multi-region runners | `pip install linode-cli` (optional) |
+
+Check all at once: `make prereqs`
 
 ### Build & Run Locally
 
 ```bash
-# Build the WASM gateway
+# Build everything (gateway + frontend)
+make build
+
+# Or step by step:
 cd edge-gateway
 cargo build --target wasm32-wasip1 --release -p clipclap-gateway-spin
-
-# Build the frontend
-cd ../frontend
-npm install && npm run build
-
-# Copy frontend to Spin static dir
+cd ../frontend && npm install && npm run build
 cp -r dist/* ../edge-gateway/adapters/spin/static/
 
 # Run locally

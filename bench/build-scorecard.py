@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Build a comparison scorecard from benchmark results.
 
-Usage: python3 build-scorecard.py <results_dir1> <results_dir2> [output_path]
+Usage: python3 build-scorecard.py <results_dir1> <results_dir2> [output_path] [--runner LABEL]
 
 Example:
-  python3 bench/build-scorecard.py results/fermyon/20260326_150000 results/linode/20260326_150500
+  python3 bench/build-scorecard.py results/fermyon/20260326 results/fastly/20260326
+  python3 bench/build-scorecard.py results/fermyon/20260326 results/fastly/20260326 scorecard.md --runner "k6 us-ord"
 """
 
 import json
@@ -90,7 +91,7 @@ def jitter(data):
     return None
 
 
-def section(title, fa, fb, name_a, name_b, show_ml=False):
+def section(title, fa, fb, name_a, name_b, show_ml=False, show_proc=False):
     lines = []
     lines.append(f"\n## {title}\n")
     lines.append(f"| Metric | {name_a} | {name_b} | Ratio |")
@@ -110,6 +111,9 @@ def section(title, fa, fb, name_a, name_b, show_ml=False):
     row("Requests/sec", "rps", lambda v: f"{v:.1f}/s" if v else "—")
     row("Error rate", "err", fmt_pct)
 
+    if show_proc:
+        row("Server processing p50", "proc_p50")
+
     if show_ml:
         row("ML inference p50", "ml_p50")
         row("ML inference p95", "ml_p95")
@@ -123,9 +127,16 @@ def main():
         print(__doc__)
         sys.exit(1)
 
-    dir_a = Path(sys.argv[1])
-    dir_b = Path(sys.argv[2])
-    output = sys.argv[3] if len(sys.argv) > 3 else None
+    args = list(sys.argv[1:])
+    runner = os.environ.get("BENCH_RUNNER", "unknown")
+    if "--runner" in args:
+        idx = args.index("--runner")
+        runner = args[idx + 1]
+        args = args[:idx] + args[idx + 2:]
+
+    dir_a = Path(args[0])
+    dir_b = Path(args[1])
+    output = args[2] if len(args) > 2 else None
 
     name_a = dir_a.parent.name.title()
     name_b = dir_b.parent.name.title()
@@ -136,17 +147,26 @@ def main():
     lines.append(f"**{name_a}** vs **{name_b}**")
     lines.append(f"")
     lines.append(f"- Date: {dir_a.name}")
-    lines.append(f"- Runner: MacBook Pro (us-central)")
+    lines.append(f"- Runner: {runner}")
     lines.append(f"")
 
-    tests = [
-        ("Warm Light (Health Check, 10 VUs, 60s)", "warm-light.json", False),
-        ("Warm Heavy (ML Inference, 5 VUs, 60s)", "warm-heavy.json", True),
-        ("Concurrency Ladder (1→50 VUs, 150s)", "concurrency-ladder.json", True),
-        ("Consistency (5 VUs, 120s)", "consistency.json", True),
+    # Primary suite tests (filenames match run-suite.sh output)
+    primary_tests = [
+        ("Warm Light (Health Check, 10 VUs, 60s)", "warm-light.json", False, False),
+        ("Warm Policy (Rules Pipeline, 10 VUs, 60s)", "warm-policy.json", False, True),
+        ("Concurrency Ladder — Rules (1→50 VUs, 150s)", "concurrency-rules.json", False, False),
     ]
 
-    for title, filename, show_ml in tests:
+    # Stretch suite tests
+    stretch_tests = [
+        ("Warm Heavy (ML Inference, 5 VUs, 60s)", "warm-heavy.json", True, False),
+        ("Consistency — ML (5 VUs, 120s)", "consistency-ml.json", True, False),
+    ]
+
+    lines.append("\n---\n")
+    lines.append("# Primary Suite (rules, ml:false)\n")
+
+    for title, filename, show_ml, show_proc in primary_tests:
         path_a = dir_a / filename
         path_b = dir_b / filename
 
@@ -159,23 +179,50 @@ def main():
         db = load(path_b)
         fa = extract_metrics(da)
         fb = extract_metrics(db)
+        lines.append(section(title, fa, fb, name_a, name_b, show_ml, show_proc))
 
-        lines.append(section(title, fa, fb, name_a, name_b, show_ml))
+    lines.append("\n---\n")
+    lines.append("# Stretch Suite (embedded ML, ml:true)\n")
 
-        if show_ml:
-            ja = jitter(da)
-            jb = jitter(db)
-            if ja or jb:
-                lines.append(f"\n*Jitter (p99/p50): {name_a}={ja:.2f}x, {name_b}={jb:.2f}x*")
+    for title, filename, show_ml, show_proc in stretch_tests:
+        path_a = dir_a / filename
+        path_b = dir_b / filename
 
-    cold_a = dir_a / "cold-start.json"
-    cold_b = dir_b / "cold-start.json"
-    if cold_a.exists() and cold_b.exists():
-        da = load(cold_a)
-        db = load(cold_b)
+        if not path_a.exists() or not path_b.exists():
+            lines.append(f"\n## {title}\n")
+            lines.append("*Results not available for both platforms.*\n")
+            continue
+
+        da = load(path_a)
+        db = load(path_b)
         fa = extract_metrics(da)
         fb = extract_metrics(db)
-        lines.append(section("Cold Start (10 iterations, 2min gaps)", fa, fb, name_a, name_b, True))
+        lines.append(section(title, fa, fb, name_a, name_b, show_ml, show_proc))
+
+        ja = jitter(da)
+        jb = jitter(db)
+        if ja or jb:
+            ja_str = f"{ja:.2f}x" if ja else "—"
+            jb_str = f"{jb:.2f}x" if jb else "—"
+            lines.append(f"\n*Jitter (p95/p50): {name_a}={ja_str}, {name_b}={jb_str}*")
+
+    # Cold start — rules
+    lines.append("\n---\n")
+    lines.append("# Cold Start\n")
+
+    for label, filename in [("Cold Start — Rules", "cold-start-rules.json"), ("Cold Start — ML", "cold-start-ml.json")]:
+        path_a = dir_a / filename
+        path_b = dir_b / filename
+        if path_a.exists() and path_b.exists():
+            da = load(path_a)
+            db = load(path_b)
+            fa = extract_metrics(da)
+            fb = extract_metrics(db)
+            show_ml = "ML" in label
+            lines.append(section(label, fa, fb, name_a, name_b, show_ml))
+        else:
+            lines.append(f"\n## {label}\n")
+            lines.append("*Results not available for both platforms.*\n")
 
     output_text = "\n".join(lines) + "\n"
 
