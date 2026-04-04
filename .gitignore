@@ -98,6 +98,7 @@ htmlcov/
 # --- Spin build artifacts (generated from frontend/) ---
 edge-gateway/adapters/spin/static/
 edge-gateway/adapters/spin/.spin/
+edge-gateway/adapters/spin/.spin-aka/
 
 # --- ML model files (large binaries, downloaded/converted locally) ---
 edge-gateway/models/toxicity/*.onnx

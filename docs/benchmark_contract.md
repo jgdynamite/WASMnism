@@ -124,7 +124,7 @@ field names, types, and nesting MUST NOT.
     "hash": "sha256:<64 hex chars>"
   },
   "gateway": {
-    "platform": "<spin | fastly | workers | lambda>",
+    "platform": "<Fermyon Cloud | Akamai Functions | fastly | workers | lambda>",
     "region": "<string>",
     "request_id": "<uuid>"
   }
@@ -141,7 +141,7 @@ field names, types, and nesting MUST NOT.
 - `moderation.ml_toxicity.inference_ms` MUST reflect actual ML forward pass time.
 - `cache.hit` MUST be a boolean.
 - `cache.hash` MUST start with `sha256:` followed by 64 hex characters.
-- `gateway.platform` MUST be one of the four target platforms.
+- `gateway.platform` MUST be one of the target platforms (`Fermyon Cloud`, `Akamai Functions`, `fastly`, `workers`, `lambda`).
 - `gateway.request_id` MUST be a UUID v4.
 - HTTP status MUST be `200` on success.
 
@@ -209,7 +209,7 @@ The gateway MUST set the following response headers:
 | Header | Value |
 |--------|-------|
 | `Content-Type` | `application/json` |
-| `X-Gateway-Platform` | `spin`, `fastly`, `workers`, or `lambda` |
+| `X-Gateway-Platform` | `Fermyon Cloud`, `Akamai Functions`, `fastly`, `workers`, or `lambda` |
 | `X-Gateway-Region` | Deployment region (e.g., `us-ord`) |
 | `X-Gateway-Request-Id` | UUID v4, generated per request |
 

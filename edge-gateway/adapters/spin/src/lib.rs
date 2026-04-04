@@ -74,7 +74,7 @@ fn classifier_status() -> String {
 
 fn config() -> GatewayConfig {
     GatewayConfig {
-        platform: "spin".into(),
+        platform: variables::get("gateway_platform").unwrap_or_else(|_| "spin".into()),
         region: variables::get("gateway_region").unwrap_or_else(|_| "unknown".into()),
     }
 }

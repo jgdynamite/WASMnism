@@ -15,6 +15,9 @@ rustup target add wasm32-wasip1
 curl -fsSL https://developer.fermyon.com/downloads/install.sh | bash
 sudo mv spin /usr/local/bin/
 
+# Spin aka plugin (for Akamai Functions deployment)
+spin plugins install aka
+
 # Node.js (for frontend)
 # macOS:
 brew install node
@@ -45,7 +48,7 @@ sudo apt-get update && sudo apt-get install -y k6
 pip install linode-cli
 linode-cli configure   # Provide your Linode API token
 
-# SSH key (runners are provisioned with your ~/.ssh/id_rsa.pub)
+# SSH key (runners are provisioned with your ~/.ssh/id_ed25519.pub)
 ```
 
 ### Verify all prerequisites
@@ -64,19 +67,23 @@ make build
 
 # Deploy to Fermyon Cloud (requires `spin cloud login` first)
 make deploy-fermyon
+
+# Or deploy to Akamai Functions (requires `spin aka login` first)
+make deploy-akamai
 ```
 
 ### 2. Run the full pipeline
 
 ```bash
 # Primary suite only (~40 min: validate + 7 runs)
-make benchmark URL=https://your-gateway.fermyon.app
+make benchmark PLATFORM=fermyon URL=https://your-gateway.fermyon.app
+make benchmark PLATFORM=akamai  URL=https://your-gateway.fwf.app
 
 # Primary + stretch (ML) suite (~60 min)
-make benchmark URL=https://your-gateway.fermyon.app BENCH_FLAGS="--ml"
+make benchmark PLATFORM=akamai URL=https://your-gateway.fwf.app BENCH_FLAGS="--ml"
 
 # Everything including cold start (~100 min)
-make benchmark URL=https://your-gateway.fermyon.app BENCH_FLAGS="--ml --cold"
+make benchmark PLATFORM=akamai URL=https://your-gateway.fwf.app BENCH_FLAGS="--ml --cold"
 ```
 
 This runs: prerequisite check -> validation (9/9 must pass) -> 7-run suite -> median computation -> results document.
@@ -87,7 +94,7 @@ Results are saved to `results/<platform>/`.
 
 ### 1. Provision k6 runners
 
-This creates 3 Linode Nanodes ($5/mo each) in Chicago, London, and Singapore:
+This creates 3 Linode Nanodes ($5/mo each) in Chicago, Frankfurt, and Singapore:
 
 ```bash
 make runners-up
@@ -105,7 +112,8 @@ make runners-status
 
 ```bash
 # From all 3 regions in parallel
-make bench-multiregion URL=https://your-gateway.fermyon.app BENCH_FLAGS="--ml --cold"
+make bench-multiregion PLATFORM=fermyon URL=https://your-gateway.fermyon.app BENCH_FLAGS="--ml --cold"
+make bench-multiregion PLATFORM=akamai  URL=https://your-gateway.fwf.app BENCH_FLAGS="--ml --cold"
 ```
 
 This SSHs into each runner, executes the full reproduce pipeline, and
@@ -123,9 +131,9 @@ Once you have results for two or more platforms:
 
 ```bash
 make scorecard \
-  A=results/fermyon/multiregion_20260326/us-ord/7run \
-  B=results/fastly/multiregion_20260326/us-ord/7run \
-  OUT=results/scorecard_fermyon_vs_fastly.md
+  A=results/fermyon/multiregion_20260402/us-ord/7run \
+  B=results/akamai/multiregion_20260404/us-ord/7run \
+  OUT=results/scorecard_fermyon_vs_akamai.md
 ```
 
 ## Adding a New Platform
@@ -164,13 +172,13 @@ CHECKSUMS
 
 ### Key metrics
 
-| Metric | What it means | Expected range (Fermyon) |
-|--------|--------------|-------------------------|
-| **Server processing p50** | Time the gateway spends on your request (rules only) | 3-5ms |
-| **Round-trip p50** | Total client-to-server-to-client time | Depends on runner distance |
-| **ML inference p50** | Time for the neural network forward pass | 880-900ms |
-| **Jitter (p95/p50)** | Latency consistency — lower is better | < 1.5x (rules), < 1.1x (ML) |
-| **Error rate** | Percentage of failed requests | 0% (target) |
+| Metric | What it means | Fermyon Cloud | Akamai Functions |
+|--------|--------------|---------------|-----------------|
+| **Server processing p50** | Time the gateway spends on your request (rules only) | 5.4-5.5ms | 2.3-2.4ms |
+| **Round-trip p50** | Total client-to-server-to-client time | Depends on distance to US-ORD | Depends on nearest compute region |
+| **ML inference p50** | Time for the neural network forward pass | 1,670-1,810ms | 779-789ms |
+| **Jitter (p95/p50)** | Latency consistency — lower is better | 1.28-1.35x | 1.05-1.11x |
+| **Error rate** | Percentage of failed requests | 0% | 0% |
 
 ### Network latency caveat
 

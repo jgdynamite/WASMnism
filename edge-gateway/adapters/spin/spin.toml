@@ -7,6 +7,7 @@ description = "AI Prompt Firewall — WASM-Powered Content Moderation at the Edg
 
 [variables]
 inference_url = { default = "" }
+gateway_platform = { default = "spin" }
 gateway_region = { default = "us-east-1" }
 
 # --- API routes → gateway WASM ---
@@ -27,12 +28,13 @@ component = "frontend"
 
 [component.gateway]
 source = "../../target/wasm32-wasip1/release/clipclap_gateway_spin.wasm"
-allowed_outbound_hosts = ["{{ inference_url }}"]
+allowed_outbound_hosts = []
 key_value_stores = ["default"]
 files = [{ source = "../../models/toxicity/", destination = "/models/toxicity" }]
 
 [component.gateway.variables]
 inference_url = "{{ inference_url }}"
+gateway_platform = "{{ gateway_platform }}"
 gateway_region = "{{ gateway_region }}"
 
 [component.gateway.build]

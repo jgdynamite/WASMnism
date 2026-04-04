@@ -3,7 +3,9 @@ set -euo pipefail
 
 # Run the moderation validation suite against a single platform.
 # Usage: ./run-validation.sh <platform> <gateway_url>
-# Example: ./run-validation.sh spin https://wasm-prompt-firewall-imjy4pe0.fermyon.app
+# Examples:
+#   ./run-validation.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app
+#   ./run-validation.sh akamai  https://0ae93a16-62c9-44cc-8a2b-23f7c6b9bae1.fwf.app
 
 PLATFORM="${1:?Usage: $0 <platform> <gateway_url>}"
 GATEWAY_URL="${2:?Usage: $0 <platform> <gateway_url>}"

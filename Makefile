@@ -1,4 +1,4 @@
-.PHONY: prereqs build build-frontend deploy-fermyon test clean validate benchmark bench-multiregion scorecard runners-up runners-status runners-sync runners-down help
+.PHONY: prereqs build build-frontend deploy-fermyon deploy-akamai test clean validate benchmark bench-multiregion scorecard runners-up runners-status runners-sync runners-down help
 
 # Default gateway URL (override with URL=...)
 URL ?= https://wasm-prompt-firewall-imjy4pe0.fermyon.app
@@ -34,6 +34,9 @@ clean:
 # ── Deploy ───────────────────────────────────────────────────
 deploy-fermyon:
 	$(MAKE) -C edge-gateway deploy-spin
+
+deploy-akamai:
+	$(MAKE) -C edge-gateway deploy-akamai
 
 # ── Benchmark (single region, local machine) ─────────────────
 validate:
@@ -77,18 +80,20 @@ help:
 	@echo "Build & Deploy:"
 	@echo "  make build                           Build WASM gateway + frontend"
 	@echo "  make deploy-fermyon                  Build + deploy to Fermyon Cloud"
+	@echo "  make deploy-akamai                   Build + deploy to Akamai Functions"
 	@echo "  make test                            Run Rust unit tests"
 	@echo ""
 	@echo "Benchmark (single region):"
-	@echo "  make validate URL=<url>              Run 9-scenario validation suite"
-	@echo "  make benchmark URL=<url>             Full pipeline: validate → 7-run → medians"
-	@echo "  make benchmark URL=<url> BENCH_FLAGS='--ml --cold'"
+	@echo "  make validate PLATFORM=akamai URL=<url>              Run 9-scenario validation"
+	@echo "  make benchmark PLATFORM=akamai URL=<url>             Full pipeline: validate → 7-run → medians"
+	@echo "  make benchmark PLATFORM=akamai URL=<url> BENCH_FLAGS='--ml --cold'"
+	@echo "  (PLATFORM defaults to 'fermyon'; set to 'akamai', 'fastly', etc. for other platforms)"
 	@echo ""
 	@echo "Benchmark (multi-region):"
-	@echo "  make runners-up                      Provision 3 Linode k6 runners"
-	@echo "  make runners-sync                    Copy latest scripts to runners"
-	@echo "  make bench-multiregion URL=<url>     Run from all 3 regions in parallel"
-	@echo "  make runners-down                    Teardown runners"
+	@echo "  make runners-up                                      Provision 3 Linode k6 runners"
+	@echo "  make runners-sync                                    Copy latest scripts to runners"
+	@echo "  make bench-multiregion PLATFORM=akamai URL=<url>     Run from all 3 regions"
+	@echo "  make runners-down                                    Teardown runners"
 	@echo ""
 	@echo "Scorecard:"
 	@echo "  make scorecard A=<dir1> B=<dir2>     Compare two result sets"

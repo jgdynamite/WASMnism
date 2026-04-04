@@ -1,4 +1,4 @@
-.PHONY: build test clean build-spin deploy-spin run-spin build-fastly build-workers build-lambda build-frontend
+.PHONY: build test clean build-spin deploy-spin deploy-akamai run-spin build-fastly build-workers build-lambda build-frontend
 
 # ── Build ─────────────────────────────────────────────────────
 build:
@@ -29,6 +29,13 @@ run-spin:
 deploy-spin:
 	cd adapters/spin && \
 	spin cloud deploy \
+	  --variable "gateway_platform=Fermyon Cloud" \
+	  --variable gateway_region=$${GATEWAY_REGION:-us-ord}
+
+deploy-akamai:
+	cd adapters/spin && \
+	spin aka deploy --no-confirm \
+	  --variable "gateway_platform=Akamai Functions" \
 	  --variable gateway_region=$${GATEWAY_REGION:-us-ord}
 
 # ── Fastly Compute ───────────────────────────────────────────

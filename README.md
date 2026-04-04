@@ -4,9 +4,11 @@
 
 A portable AI Prompt Firewall deployed as WebAssembly across multiple edge platforms, with an embedded ML toxicity classifier running entirely inside the WASM runtime. Built to produce a decision-grade price-per-performance scorecard comparing WASM edge compute providers.
 
-> **Status**: Work in progress. Fermyon Cloud is live. Akamai Functions, Fastly, Cloudflare, and Lambda deployments are next.
+> **Status**: Work in progress. Fermyon Cloud and Akamai Functions are live and benchmarked. Fastly, Cloudflare, and Lambda deployments are next.
 
-**Live demo**: [wasm-prompt-firewall-imjy4pe0.fermyon.app](https://wasm-prompt-firewall-imjy4pe0.fermyon.app/)
+**Live demos**:
+- Fermyon Cloud: [wasm-prompt-firewall-imjy4pe0.fermyon.app](https://wasm-prompt-firewall-imjy4pe0.fermyon.app/)
+- Akamai Functions: [0ae93a16-62c9-44cc-8a2b-23f7c6b9bae1.fwf.app](https://0ae93a16-62c9-44cc-8a2b-23f7c6b9bae1.fwf.app/)
 
 ---
 
@@ -38,13 +40,13 @@ A Svelte SaaS-style dashboard with:
 
 ### Deployments
 
-| Platform | Status |
-|----------|--------|
-| **Fermyon Cloud** (Spin) | Live |
-| **Akamai Functions** (Spin) | Access requested |
-| **Fastly Compute** | Scaffolded |
-| **Cloudflare Workers** | Scaffolded |
-| **AWS Lambda** | Scaffolded |
+| Platform | Status | Endpoint |
+|----------|--------|----------|
+| **Fermyon Cloud** (Spin) | Live + benchmarked | [fermyon.app](https://wasm-prompt-firewall-imjy4pe0.fermyon.app/) |
+| **Akamai Functions** (Spin) | Live + benchmarked | [fwf.app](https://0ae93a16-62c9-44cc-8a2b-23f7c6b9bae1.fwf.app/) |
+| **Fastly Compute** | Scaffolded | — |
+| **Cloudflare Workers** | Scaffolded | — |
+| **AWS Lambda** | Scaffolded | — |
 
 ### ML Model Pipeline
 
@@ -60,7 +62,7 @@ A Svelte SaaS-style dashboard with:
 - Cold start tests for both modes
 - Suite runner, 7-run median calculator, scorecard generator, and multi-region runner
 - Automated reproduce pipeline: `make benchmark` (single region) or `make bench-multiregion` (3 regions)
-- Multi-region k6 infrastructure: automated provisioning of Linode VMs in us-ord, eu-west, ap-south
+- Multi-region k6 infrastructure: automated provisioning of Linode VMs in us-ord, eu-central, ap-south
 - Measurement contract v3.1 with 9-scenario validation suite for correctness
 
 ---
@@ -69,7 +71,8 @@ A Svelte SaaS-style dashboard with:
 
 ### Platform Deployments
 
-- [ ] **Akamai Functions (Spin)** — access requested, same Spin adapter applies
+- [x] **Fermyon Cloud (Spin)** — deployed, validated, multi-region benchmarked
+- [x] **Akamai Functions (Spin)** — deployed, validated, multi-region benchmarked
 - [ ] **Fastly Compute** — adapter scaffolded, needs deployment and testing
 - [ ] **Cloudflare Workers** — adapter scaffolded, needs deployment and testing
 - [ ] **AWS Lambda** — adapter scaffolded, needs deployment and testing
@@ -85,8 +88,8 @@ A Svelte SaaS-style dashboard with:
 - [x] Multi-region k6 runner infrastructure (`deploy/k6-runner-setup.sh`)
 - [x] Multi-region orchestrator (`bench/run-multiregion.sh`)
 - [x] Root Makefile with all automation targets
-- [ ] Multi-region benchmark data (3 geographic locations)
-- [ ] Cross-platform scorecard: latency percentiles (p50, p90, p95) per test
+- [x] Multi-region benchmark data (3 geographic locations: us-ord, eu-central, ap-south)
+- [x] Cross-platform scorecard: Fermyon vs Akamai ([results/fermyon_vs_akamai_scorecard.md](results/fermyon_vs_akamai_scorecard.md))
 
 ### Cost Analysis
 
@@ -102,7 +105,7 @@ A Svelte SaaS-style dashboard with:
 
 ### Potential Improvements
 
-- [ ] ML inference optimization (currently ~890ms warm on Fermyon — expected for 53MB model in WASM)
+- [ ] ML inference optimization (779ms on Akamai, 1,760ms on Fermyon — platform runtime is dominant factor)
 - [ ] Additional toxicity categories beyond `toxic` and `severe_toxic`
 - [ ] Quantized model variant for lower-latency ML inference
 - [ ] Raw JSON response toggle in the dashboard
@@ -127,8 +130,8 @@ The gateway is a single Rust codebase compiled to `wasm32-wasip1`, with thin pla
 
 | Platform | Adapter | Status |
 |----------|---------|--------|
-| **Fermyon Cloud** (Spin) | `edge-gateway/adapters/spin/` | Deployed |
-| **Akamai Functions** (Spin) | `edge-gateway/adapters/spin/` | Access requested |
+| **Fermyon Cloud** (Spin) | `edge-gateway/adapters/spin/` | Deployed + benchmarked |
+| **Akamai Functions** (Spin) | `edge-gateway/adapters/spin/` | Deployed + benchmarked |
 | **Fastly Compute** | `edge-gateway/adapters/fastly/` | Scaffolded |
 | **Cloudflare Workers** | `edge-gateway/adapters/workers/` | Scaffolded |
 | **AWS Lambda** | `edge-gateway/adapters/lambda/` | Scaffolded |
@@ -170,6 +173,7 @@ WASMnism/
 |------|-----------|---------|
 | [Rust](https://rustup.rs/) + `wasm32-wasip1` | Build gateway | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh && rustup target add wasm32-wasip1` |
 | [Spin CLI](https://developer.fermyon.com/spin/install) | Build + deploy | `curl -fsSL https://developer.fermyon.com/downloads/install.sh \| bash` |
+| Spin aka plugin | Akamai Functions | `spin plugins install aka` |
 | [Node.js](https://nodejs.org/) 18+ | Frontend build | `brew install node` or [nodejs.org](https://nodejs.org) |
 | [k6](https://k6.io) | Benchmarks | `brew install k6` |
 | Python 3 | Medians + scorecard | Pre-installed on macOS/Ubuntu |
@@ -197,8 +201,16 @@ spin up
 ### Deploy to Fermyon Cloud
 
 ```bash
-cd edge-gateway/adapters/spin
-spin cloud deploy
+make deploy-fermyon
+# or: cd edge-gateway/adapters/spin && spin cloud deploy
+```
+
+### Deploy to Akamai Functions
+
+```bash
+spin aka login    # one-time auth
+make deploy-akamai
+# or: cd edge-gateway/adapters/spin && spin aka deploy --no-confirm
 ```
 
 ## ML Model
@@ -210,7 +222,7 @@ spin cloud deploy
 | Format | NNEF (Tract native) |
 | Vocab size | 8,000 tokens |
 | Model file | ~53 MB |
-| Inference | ~850ms (Fermyon Cloud, cold) |
+| Inference | ~779ms (Akamai Functions) / ~1,760ms (Fermyon Cloud) |
 | Categories | `toxic`, `severe_toxic` |
 
 The model runs entirely inside the WASM sandbox — no external ML service calls. It was exported from PyTorch to ONNX, vocabulary-trimmed from 30k to 8k tokens to fit deployment size limits, then converted to Tract's NNEF format to avoid expensive protobuf parsing in the WASM runtime.
@@ -239,14 +251,17 @@ See the full [measurement contract](docs/benchmark_contract.md) (v3.1) for schem
 The `ml` field in the request body controls whether ML inference runs. Default is `true` for backward compatibility; benchmarks use `ml: false` for the primary suite.
 
 ```bash
-# Primary suite only
-./bench/run-suite.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app
+# Fermyon Cloud
+make benchmark PLATFORM=fermyon URL=https://wasm-prompt-firewall-imjy4pe0.fermyon.app
 
-# Primary + stretch (ML) tests
-./bench/run-suite.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app --ml
+# Akamai Functions
+make benchmark PLATFORM=akamai URL=https://0ae93a16-62c9-44cc-8a2b-23f7c6b9bae1.fwf.app
 
-# With cold start tests (~40 min additional)
-./bench/run-suite.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app --ml --cold
+# With ML + cold start (~100 min)
+make benchmark PLATFORM=akamai URL=https://your-gateway.fwf.app BENCH_FLAGS="--ml --cold"
+
+# Multi-region (from 3 k6 runners)
+make bench-multiregion PLATFORM=akamai URL=https://your-gateway.fwf.app BENCH_FLAGS="--ml --cold"
 ```
 
 ## API
@@ -264,7 +279,7 @@ The `ml` field in the request body controls whether ML inference runs. Default i
 
 Set `ml: false` for rules-only (recommended for production). Omit or set `ml: true` to include ML toxicity inference.
 
-**Rules-only response** (`ml: false`) — ~3ms:
+**Rules-only response** (`ml: false`) — ~2.3ms (Akamai Functions) / ~5.5ms (Fermyon Cloud):
 
 ```json
 {
@@ -273,14 +288,14 @@ Set `ml: false` for rules-only (recommended for production). Omit or set `ml: tr
     "policy_flags": [],
     "confidence": 0.0,
     "blocked_terms": [],
-    "processing_ms": 3.1
+    "processing_ms": 2.3
   },
   "cache": { "hit": false, "hash": "sha256:..." },
-  "gateway": { "platform": "spin", "region": "us-ord", "request_id": "..." }
+  "gateway": { "platform": "Akamai Functions", "region": "us-ord", "request_id": "..." }
 }
 ```
 
-**With ML response** (`ml: true`) — ~890ms:
+**With ML response** (`ml: true`) — ~779ms (Akamai Functions) / ~1,760ms (Fermyon Cloud):
 
 ```json
 {
@@ -289,16 +304,16 @@ Set `ml: false` for rules-only (recommended for production). Omit or set `ml: tr
     "policy_flags": [],
     "confidence": 0.0,
     "blocked_terms": [],
-    "processing_ms": 890.2,
+    "processing_ms": 781.7,
     "ml_toxicity": {
       "toxic": 0.001,
       "severe_toxic": 0.0001,
-      "inference_ms": 887.0,
+      "inference_ms": 779.3,
       "model": "MiniLMv2-toxic-jigsaw"
     }
   },
   "cache": { "hit": false, "hash": "sha256:..." },
-  "gateway": { "platform": "spin", "region": "us-ord", "request_id": "..." }
+  "gateway": { "platform": "Akamai Functions", "region": "us-ord", "request_id": "..." }
 }
 ```
 

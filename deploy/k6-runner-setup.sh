@@ -208,7 +208,7 @@ case "${1:-help}" in
     *)
         echo "Usage: $0 {provision|status|sync|teardown}"
         echo ""
-        echo "  provision  Create 3 Linode k6 runners (us-ord, eu-west, ap-south)"
+        echo "  provision  Create 3 Linode k6 runners (us-ord, eu-central, ap-south)"
         echo "  status     Check runner health and k6 version"
         echo "  sync       Re-copy bench scripts to all runners"
         echo "  teardown   Destroy all runners"

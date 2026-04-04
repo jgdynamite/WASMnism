@@ -9,8 +9,8 @@ set -euo pipefail
 #
 # Examples:
 #   ./bench/reproduce.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app
-#   ./bench/reproduce.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app --ml --cold
-#   ./bench/reproduce.sh fermyon https://wasm-prompt-firewall-imjy4pe0.fermyon.app --region us-ord
+#   ./bench/reproduce.sh akamai  https://0ae93a16-62c9-44cc-8a2b-23f7c6b9bae1.fwf.app --ml --cold
+#   ./bench/reproduce.sh akamai  https://your-gateway.fwf.app --region us-ord
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLATFORM="${1:?Usage: $0 <platform> <gateway-url> [--ml] [--cold] [--region <name>]}"
